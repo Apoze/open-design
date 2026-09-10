@@ -15599,6 +15599,7 @@ export async function startServer({
         child,
         requestId: run.id,
         prompt: composed,
+        turnInstructions: hostProtocol.text,
         cwd: effectiveCwd,
         model: safeModel,
         reasoningEffort: safeReasoning,

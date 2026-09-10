@@ -20,6 +20,9 @@
  */
 import { renderDirectionSpecBlock } from './directions.js';
 
+import { FILESYSTEM_HANDOFF_INVARIANT, TEXT_ARTIFACT_HANDOFF_INVARIANT } from './artifact-handoff.js';
+import type { ExecutionProfile } from '../execution-profile.js';
+
 export const DISCOVERY_AND_PHILOSOPHY = `# OD core directives (read first — these override anything later in this prompt)
 
 You are an expert designer working with the user as your manager. You produce design artifacts in HTML — prototypes, decks, dashboards, marketing pages. **HTML is your tool, not your medium**: when making slides be a slide designer, when making an app prototype be an interaction designer. Don't write a web page when the brief is a deck.
@@ -127,11 +130,7 @@ Skip directly to RULE 3. Do **not** emit any second direction-picking form and d
 
 ---
 
-## Artifact emission is conditional (dominant-layer invariant)
-
-Emit \`<artifact>\` **only when this turn wrote a new canonical HTML file**. If this turn only edited an existing HTML file — or the body would be prose / summary / file-path / bash-output rather than a complete \`<!doctype html>\` document — do **not** emit \`<artifact>\`; summarize the changed file instead. This invariant overrides any \`emit <artifact>\` step that appears later in this prompt; see "Artifact handoff" in the base charter for the full no-emit rationale and rules.
-
----
+${FILESYSTEM_HANDOFF_INVARIANT}
 
 ## RULE 3 — TodoWrite the plan, then live updates
 
@@ -150,7 +149,7 @@ The standard plan template (adapt the middle steps to the brief):
 - 6.  Replace [REPLACE] placeholders with real, specific copy from the brief
 - 7.  Self-check: run references/checklist.md (P0 must all pass)
 - 8.  Critique: 5-dim radar (philosophy / hierarchy / execution / specificity / restraint), fix any < 3/5
-- 9.  Emit single <artifact> if a new canonical HTML file was written this turn; otherwise summarize the edits
+- 9.  Deliver according to the execution profile above, then summarize the result
 \`\`\`
 
 **Decks especially — framework first, content second.** For \`kind=deck\` projects, step 4 is the load-bearing one: copy the deck framework HTML (the active skill's \`assets/template.html\`, or, if no skill is bound, the canonical skeleton in the deck-mode directive at the bottom of this prompt) **verbatim** before authoring any slide content. Do NOT write your own scale-to-fit logic, keyboard handler, slide visibility toggle, counter, or print stylesheet — every freeform attempt at this re-introduces the same iframe positioning / scaling bugs we have already fixed in the framework. Your job is to drop the framework in, bind the palette, then fill the \`<section class="slide">\` slots. That's it.
@@ -283,5 +282,12 @@ The single-screen \`mobile-app\` skill already inlines the iPhone frame in its s
   - Provided brand/reference source → run brand-spec extraction, write \`brand-spec.md\`, then TodoWrite.
   - \`brand_spec\` / \`reference_match\` without a provided source → ask for the source and stop; do not guess brand tokens.
   - Else → TodoWrite directly; if a design system is active and no new brand/reference source was provided, use it as the visual direction without asking again.
-- **Build** — work the plan; mark todos completed as each step lands; show the user something visible early; iterate; **run checklist + 5-dim critique** before emitting; emit a single \`<artifact>\`.
+- **Build** — work the plan; mark todos completed as each step lands; show the user something visible early; iterate; **run checklist + 5-dim critique** before emitting; deliver according to the execution profile above.
 `;
+
+/** Keep the dominant delivery instruction aligned with the execution profile. */
+export function renderDiscoveryAndPhilosophy(executionProfile: ExecutionProfile = 'filesystem'): string {
+  return executionProfile === 'text_artifact'
+    ? DISCOVERY_AND_PHILOSOPHY.replace(FILESYSTEM_HANDOFF_INVARIANT, TEXT_ARTIFACT_HANDOFF_INVARIANT)
+    : DISCOVERY_AND_PHILOSOPHY;
+}

@@ -15,7 +15,7 @@ Repository developers can perform the equivalent operation manually:
 ```sh
 pnpm --filter @open-design/dsh-runtime build
 pnpm -C packages/dsh-runtime pack --pack-destination <temporary-directory>
-dsh plugin --profile open-design add <temporary-directory>/open-design-dsh-runtime-0.1.0.tgz
+dsh plugin --profile open-design add <temporary-directory>/open-design-dsh-runtime-0.1.1.tgz
 dsh --profile open-design --probe
 dsh --profile open-design --models
 ```
@@ -31,3 +31,18 @@ provides cold resume across later processes.
 The models command prints the provider-qualified catalog assembled by the
 user's Harness profile. OpenDesign refreshes this read-only catalog during
 agent detection; credentials and secret values are never included.
+
+A turn that reaches its output-token limit emits `status: "failed"`,
+`stop_reason: "max-tokens"`, and `DSH_PROFILE_OUTPUT_INCOMPLETE`. It must not
+be recorded as completed. The Harness session remains available for resume.
+
+Text is published after each model response finishes with `stop` or `tool-calls`.
+Text from interrupted responses stays in the Harness session and is excluded
+from OpenDesign's displayed answer and terminal output. Committed reasoning blocks are emitted as thinking frames, separately from
+answer text. Executed tool events stream as they arrive.
+
+The embedded runtime accepts both historical `text` deltas and current DSH `text` blocks with `value` chunks. Completed runs return their accepted final text; incomplete or cancelled tool generations remain failures instead of successful empty results.
+
+The `durable_turn_instructions` capability accepts `turn_instructions` on execute.
+The runtime registers these instructions as Harness runtime context, preserving
+the current turn protocol when conversation history is compacted.

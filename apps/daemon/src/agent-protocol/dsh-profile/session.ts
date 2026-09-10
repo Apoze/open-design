@@ -13,6 +13,7 @@ export type AttachDshProfileSessionOptions = {
   child: ChildProcess;
   requestId: string;
   prompt: string;
+  turnInstructions?: string;
   cwd: string;
   model?: string | null;
   reasoningEffort?: string | null;
@@ -52,6 +53,7 @@ export function attachDshProfileSession({
   child,
   requestId,
   prompt,
+  turnInstructions,
   cwd,
   model,
   reasoningEffort,
@@ -106,6 +108,12 @@ export function attachDshProfileSession({
     if (status === 'completed') onComplete?.();
   };
 
+  const endThinking = () => {
+    if (!thinkingStarted) return;
+    thinkingStarted = false;
+    send('agent', { type: 'thinking_end' });
+  };
+
   const sendExecute = () => {
     const command: DshProfileExecuteCommand = {
       v: 1,
@@ -113,6 +121,7 @@ export function attachDshProfileSession({
       request_id: requestId,
       cwd,
       prompt,
+      ...(turnInstructions ? { turn_instructions: turnInstructions } : {}),
       ...(resumeSessionId ? { resume_session_id: resumeSessionId } : {}),
       ...(selectedModel ? { model: selectedModel } : {}),
       ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
@@ -161,10 +170,12 @@ export function attachDshProfileSession({
         return;
       case 'text':
         if (!requireSession()) return;
+        endThinking();
         if (frame.content) send('agent', { type: 'text_delta', delta: frame.content });
         return;
       case 'tool_call':
         if (!requireSession()) return;
+        endThinking();
         send('agent', {
           type: 'tool_use',
           id: frame.call_id,
@@ -245,6 +256,10 @@ export function attachDshProfileSession({
         onReady?.();
         if (aborted) {
           finish('cancelled');
+          return;
+        }
+        if (turnInstructions && frame.capabilities.durable_turn_instructions !== true) {
+          fail('Update the OpenDesign DSH profile to support durable turn instructions.', 'DSH_PROFILE_UPDATE_REQUIRED');
           return;
         }
         sendExecute();

@@ -262,6 +262,28 @@ describe('fake DeepSeek Harness profile runtime', () => {
 });
 
 describe('DeepSeek Harness profile session controller', () => {
+  test('transports exact turn instructions only to a capable runtime', () => {
+    const instructions = 'Current delivery key: 123.\nPreserve this after compaction.';
+    for (const capable of [false, true]) {
+      const child = new FakeDshChild();
+      const writes: Record<string, unknown>[] = [];
+      const errors: unknown[] = [];
+      child.stdin.on('data', (chunk) => writes.push(JSON.parse(String(chunk))));
+      const controller = attachDshProfileSession({
+        child: child as never, requestId: 'run', cwd: '/project', prompt: 'build',
+        turnInstructions: instructions,
+        send: (event, payload) => { if (event === 'error') errors.push(payload); },
+      });
+      child.emitFrame({ ...readyFrame, capabilities: {
+        ...requiredCapabilities, ...(capable ? { durable_turn_instructions: true } : {}),
+      } });
+      assert.equal(controller.hasFatalError(), !capable);
+      assert.equal(writes.length, capable ? 1 : 0);
+      assert.equal(errors.length, capable ? 0 : 1);
+      if (capable) assert.equal(writes[0]?.turn_instructions, instructions);
+    }
+  });
+
   test('reports an explicit resume rejection before a session is established', () => {
     const child = new FakeDshChild();
     const events: Array<{ event: string; payload: Record<string, unknown> }> = [];
@@ -385,11 +407,11 @@ describe('DeepSeek Harness profile session controller', () => {
       'status',
       'thinking_start',
       'thinking_delta',
+      'thinking_end',
       'text_delta',
       'tool_use',
       'tool_result',
       'usage',
-      'thinking_end',
     ]);
     assert.deepEqual(events.find(({ payload }) => payload.type === 'usage')?.payload, {
       type: 'usage',

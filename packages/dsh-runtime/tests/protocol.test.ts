@@ -26,6 +26,7 @@ describe('@open-design/dsh-runtime protocol', () => {
         session_resume: true,
         session_cancel: true,
         structured_events: true,
+        durable_turn_instructions: true,
       },
     });
   });
@@ -52,6 +53,16 @@ describe('@open-design/dsh-runtime protocol', () => {
       type: 'cancel',
       request_id: 'run-1',
     });
+  });
+
+  test('validates durable turn instructions without changing their bytes', () => {
+    const base = { v: 1, type: 'execute', request_id: 'run', cwd: '/project', prompt: 'build', mcp_servers: [] };
+    const instructions = 'Delivery key: 123.\nUse the current key after compaction.';
+    const command = parseHostCommand({ ...base, turn_instructions: instructions });
+    assert.equal(command.type === 'execute' && command.turn_instructions, instructions);
+    for (const invalid of ['', '   ', 42, null, {}]) {
+      assert.throws(() => parseHostCommand({ ...base, turn_instructions: invalid }), /invalid turn instructions/);
+    }
   });
 
   test('emits a namespaced Harness model catalog', () => {
@@ -106,6 +117,11 @@ describe('@open-design/dsh-runtime protocol', () => {
   });
 
   test('normalizes every failed terminal reason to a wire error', () => {
+    assert.equal(internals.resultStatus({ kind: 'max-tokens' }), 'failed');
+    assert.deepEqual(internals.resultError({ kind: 'max-tokens' }), {
+      code: 'DSH_PROFILE_OUTPUT_INCOMPLETE',
+      message: 'DeepSeek Harness reached the output limit before completing the turn. The session is preserved; incomplete tool calls were not executed.',
+    });
     assert.deepEqual(internals.resultError({ kind: 'blocked' }), {
       code: 'DSH_PROFILE_TURN_BLOCKED',
       message: 'DeepSeek Harness blocked the turn before it completed.',
@@ -159,6 +175,76 @@ describe('@open-design/dsh-runtime protocol', () => {
     assert.deepEqual(calls, ['managed:0', 'scheduled:1000', 'unref']);
     scheduled?.();
     assert.deepEqual(calls, ['managed:0', 'scheduled:1000', 'unref', 'forced']);
+  });
+
+  test('retains incomplete text in the Harness session without publishing it as an answer', () => {
+    const frames: string[] = [];
+    const writer = internals.createSessionEventWriter({ write: (text: string) => { frames.push(text); return true; } }, {
+      v: 1, type: 'execute', request_id: 'run', cwd: '/project', prompt: 'build', mcp_servers: [],
+    }, 'provider', 'model');
+    const accept = (chunk: unknown) => writer.accept({
+      type: 'assistant/chunk', seq: 1, time: 0, data: { turn: 1, step: 1, chunk },
+    } as Parameters<typeof writer.accept>[0]);
+    accept({ type: 'text-delta', index: 0, text: '<tool_call>unfinished HTML' });
+    assert.equal(frames.length, 0);
+    accept({ type: 'finish', reason: { kind: 'max-tokens' } });
+    assert.equal(frames.length, 0);
+    assert.equal(writer.text, '');
+    accept({ type: 'text-delta', index: 0, text: 'Saved successfully.' });
+    accept({ type: 'finish', reason: { kind: 'stop' } });
+    assert.equal(JSON.parse(frames[0] ?? '{}').content, 'Saved successfully.');
+    assert.equal(writer.text, 'Saved successfully.');
+    accept({ type: 'text-delta', index: 0, text: 'cancelled partial' });
+    accept({ type: 'finish', reason: { kind: 'aborted', failure: { code: 'ABORTED', message: 'cancelled' } } });
+    assert.equal(frames.length, 1);
+  });
+
+  test('publishes settled embedded-stream messages and ignores rejected attempts', () => {
+    const frames: string[] = [];
+    const writer = internals.createSessionEventWriter({ write: (text: string) => { frames.push(text); return true; } }, {
+      v: 1, type: 'execute', request_id: 'run', cwd: '/project', prompt: 'build', mcp_servers: [],
+    }, 'provider', 'model');
+    const accept = (type: string, text: string, reason: string) => writer.accept({
+      type, seq: 1, time: 0, data: {
+        turn: 1, step: 1, message: { content: [{ type: 'text', text }] },
+        stream: [{ type: 'chunk', index: 0, time: 0, chunk: { type: 'finish', reason: { kind: reason } } }],
+      },
+    } as unknown as Parameters<typeof writer.accept>[0]);
+    accept('assistant/attempt', 'unfinished file', 'max-tokens');
+    assert.equal(writer.text, '');
+    accept('assistant/message', 'Fichier vérifié.', 'stop');
+    assert.equal(writer.text, 'Fichier vérifié.');
+    assert.equal(JSON.parse(frames[0] ?? '{}').content, 'Fichier vérifié.');
+    accept('assistant/message', 'truncated legacy output', 'max-tokens');
+    assert.equal(frames.length, 1);
+  });
+
+  test('keeps settled reasoning separate from visible text and terminal output', () => {
+    const frames: string[] = [];
+    const writer = internals.createSessionEventWriter({ write: (text: string) => frames.push(text) }, {
+      v: 1, type: 'execute', request_id: 'run', cwd: '/project', prompt: 'build', mcp_servers: [],
+    }, 'provider', 'model');
+    writer.accept({
+      type: 'assistant/message', seq: 2, time: 0, data: {
+        turn: 1, step: 1, message: { content: [
+          { type: 'reasoning', text: 'Internal plan with <od-next> example.' },
+          { type: 'text', text: 'File saved. ' },
+          { type: 'reasoning', text: 'Check delivery.' },
+          { type: 'text', text: 'Verified.' },
+        ] },
+        stream: [{ type: 'chunk', chunk: { type: 'finish', reason: { kind: 'stop' } } }],
+      },
+    } as unknown as Parameters<typeof writer.accept>[0]);
+    assert.deepEqual(frames.map((frame) => {
+      const { type, content } = JSON.parse(frame);
+      return { type, content };
+    }), [
+      { type: 'thinking', content: 'Internal plan with <od-next> example.' },
+      { type: 'text', content: 'File saved. ' },
+      { type: 'thinking', content: 'Check delivery.' },
+      { type: 'text', content: 'Verified.' },
+    ]);
+    assert.equal(writer.text, 'File saved. Verified.');
   });
 
   test('replays cancellation received before execute initializes its AbortController', async () => {

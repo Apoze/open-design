@@ -32,7 +32,7 @@
 import type { ChatSessionMode } from '../api/chat.js';
 import type { ProjectMetadata, ProjectTemplate } from '../api/projects.js';
 import { OFFICIAL_DESIGNER_PROMPT, renderOfficialDesignerPrompt } from './official-system.js';
-import { DISCOVERY_AND_PHILOSOPHY } from './discovery.js';
+import { renderDiscoveryAndPhilosophy } from './discovery.js';
 import {
   renderDeckFrameworkDirective,
   type DeckFrameworkMode,
@@ -421,7 +421,7 @@ export function composeSystemPrompt({
   }
 
   if (!isMediaSurfaceEarly && !isAskMode) {
-    parts.push(DISCOVERY_AND_PHILOSOPHY, '\n\n---\n\n');
+    parts.push(renderDiscoveryAndPhilosophy(streamFormat === 'plain' ? 'text_artifact' : 'filesystem'), '\n\n---\n\n');
   }
 
   // Ask mode skips the multi-thousand-token designer charter entirely — the
@@ -432,7 +432,7 @@ export function composeSystemPrompt({
     // daemon prompt so API/BYOK-backed web-clone runs behave identically.
     parts.push(
       '# Identity and workflow charter (background)\n\n',
-      renderOfficialDesignerPrompt({ webCloneFidelity: metadata?.intent === 'web-clone' }),
+      renderOfficialDesignerPrompt({ executionProfile: streamFormat === 'plain' ? 'text_artifact' : 'filesystem', webCloneFidelity: metadata?.intent === 'web-clone' }),
     );
   }
 
@@ -485,7 +485,7 @@ export function composeSystemPrompt({
 
     if ((memoryHooks?.verify ?? true)) {
       parts.push(
-        `\n\n## Self-verify against your verified rules\n\nThe **Verified rules** above are enforceable checks, not soft preferences. After you finish producing or editing an artifact, evaluate it against every active rule, FIX any failure in place before ending your turn, then emit one scorecard:\n\n<od-card type="verify-scorecard">\n{ "status": "pass|partial|fail", "summary": "5/6 checks passed · 1 auto-fixed", "rows": [ {"rule": "<the check>", "status": "pass|fail|fixed", "note": "<what was wrong / what you fixed>"} ] }\n</od-card>\n\nPrefer fixing silently over asking. Leave a row as "fail" only when fixing it needs a decision you genuinely cannot make from the request plus memory. The daemon programmatically checks this scorecard after your turn — a missing scorecard or a rule left uncovered on an artifact turn is recorded as an enforcement failure — so always emit it when verified rules apply. Skip the scorecard entirely only when there are no verified rules or the turn produced no artifact.\n\nThe scorecard is ADDITIVE to — never a replacement for — the rest of the end-of-run flow. On an artifact turn you still run the existing anti-slop / brand self-check (the "N/N brand checks passed" gate) and still close with the normal handoff. Order the end of your turn as: (1) finish the anti-slop / brand self-check and fix any failure in place, (2) emit the verify-scorecard card, (3) close with the normal handoff — a single <artifact> block when this turn wrote a new canonical HTML file, otherwise a brief file-operation summary of what changed and what is still open. The scorecard only checks your verified rules; it does not absorb the anti-slop gate or the end-of-run summary.`,
+        `\n\n## Self-verify against your verified rules\n\nThe **Verified rules** above are enforceable checks, not soft preferences. After you finish producing or editing an artifact, evaluate it against every active rule, FIX any failure in place before ending your turn, then emit one scorecard:\n\n<od-card type="verify-scorecard">\n{ "status": "pass|partial|fail", "summary": "5/6 checks passed · 1 auto-fixed", "rows": [ {"rule": "<the check>", "status": "pass|fail|fixed", "note": "<what was wrong / what you fixed>"} ] }\n</od-card>\n\nPrefer fixing silently over asking. Leave a row as "fail" only when fixing it needs a decision you genuinely cannot make from the request plus memory. The daemon programmatically checks this scorecard after your turn — a missing scorecard or a rule left uncovered on an artifact turn is recorded as an enforcement failure — so always emit it when verified rules apply. Skip the scorecard entirely only when there are no verified rules or the turn produced no artifact.\n\nThe scorecard is ADDITIVE to — never a replacement for — the rest of the end-of-run flow. On an artifact turn you still run the existing anti-slop / brand self-check (the "N/N brand checks passed" gate) and still close with the normal handoff. Order the end of your turn as: (1) finish the anti-slop / brand self-check and fix any failure in place, (2) emit the verify-scorecard card, (3) close with the normal handoff — a brief file-operation summary in filesystem runs, or a complete <artifact> block in text-only API runs. The scorecard only checks your verified rules; it does not absorb the anti-slop gate or the end-of-run summary.`,
       );
     }
 

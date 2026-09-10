@@ -123,14 +123,11 @@ describe('DISCOVERY_AND_PHILOSOPHY (contracts copy) — prompt routing parity', 
     );
   });
 
-  it('keeps artifact emission conditional on writing a new canonical HTML file', () => {
-    expect(DISCOVERY_AND_PHILOSOPHY).toContain('## Artifact emission is conditional');
-    expect(DISCOVERY_AND_PHILOSOPHY).toContain(
-      'only when this turn wrote a new canonical HTML file',
-    );
-    expect(DISCOVERY_AND_PHILOSOPHY).toContain(
-      'If this turn only edited an existing HTML file',
-    );
+  it('uses filesystem delivery for tool-backed runs', () => {
+    const prompt = composeSystemPrompt({ streamFormat: 'dsh-profile-jsonl' });
+    expect(prompt).toContain('project files are the source of truth');
+    expect(prompt).toContain('Do not emit a source-code `<artifact>` block');
+    expect(prompt).not.toContain('only when this turn wrote a new canonical HTML file');
   });
 
   it('defaults generated deliverables to semantic filenames after active skills', () => {

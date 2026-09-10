@@ -162,6 +162,7 @@ export function parseDshProfileHostCommand(value: unknown): DshProfileHostComman
   if (typeof command.prompt !== 'string') throw new Error('prompt must be a string');
   stringField(command, 'resume_session_id', true);
   stringField(command, 'reasoning_effort', true);
+  stringField(command, 'turn_instructions', true);
   if (!Array.isArray(command.mcp_servers)) throw new Error('mcp_servers must be an array');
   if (command.model !== undefined) {
     const model = objectValue(command.model, 'model');

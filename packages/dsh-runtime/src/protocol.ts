@@ -4,6 +4,7 @@ export const CAPABILITIES = {
   session_resume: true,
   session_cancel: true,
   structured_events: true,
+  durable_turn_instructions: true,
 } as const;
 
 export type ModelCatalogEntry = {
@@ -29,6 +30,8 @@ export type ExecuteCommand = {
   request_id: string;
   cwd: string;
   prompt: string;
+  /** Host-owned instructions restored verbatim after context compaction. */
+  turn_instructions?: string;
   resume_session_id?: string;
   model?: { provider: string; id: string };
   reasoning_effort?: string;
@@ -74,12 +77,16 @@ export function parseHostCommand(value: unknown): HostCommand {
   if (input.reasoning_effort !== undefined && !nonEmpty(input.reasoning_effort)) {
     throw new Error('invalid reasoning effort');
   }
+  if (input.turn_instructions !== undefined && !nonEmpty(input.turn_instructions)) {
+    throw new Error('invalid turn instructions');
+  }
   return {
     v: 1,
     type: 'execute',
     request_id: input.request_id,
     cwd: input.cwd,
     prompt: input.prompt,
+    ...(input.turn_instructions === undefined ? {} : { turn_instructions: input.turn_instructions as string }),
     mcp_servers: input.mcp_servers,
     ...(input.resume_session_id === undefined ? {} : { resume_session_id: input.resume_session_id }),
     ...(model === null ? {} : { model: { provider: model.provider as string, id: model.id as string } }),

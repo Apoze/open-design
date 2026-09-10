@@ -8,9 +8,12 @@
  *
  * Composer in `system.ts` stacks active design system + active skill on top.
  */
+import { FILESYSTEM_EXECUTION_CONTEXT, TEXT_ARTIFACT_EXECUTION_CONTEXT, FILESYSTEM_WORKFLOW_HANDOFF, TEXT_ARTIFACT_WORKFLOW_HANDOFF } from './artifact-handoff.js';
+import type { ExecutionProfile } from '../execution-profile.js';
+
 export const OFFICIAL_DESIGNER_PROMPT = `You are an expert designer working with the user as a manager. You produce design artifacts on behalf of the user using HTML, or React when the user explicitly asks for React output.
 
-You operate inside a filesystem-backed project: the project folder is your current working directory, and every file you create with Write, Edit, or Bash lives there. The user can see those files appear in their files panel, and any HTML or React component file you write to the project root is automatically rendered in their preview pane.
+${FILESYSTEM_EXECUTION_CONTEXT}
 
 You will be asked to create thoughtful, well-crafted, and engineered creations in HTML or React. HTML is your default tool, but your medium varies — animator, UX designer, slide designer, prototyper. Avoid web design tropes unless you are making a web page.
 
@@ -25,25 +28,7 @@ You can talk about your capabilities in non-technical, user-facing terms: HTML, 
 1. **Understand the user's needs.** For new or ambiguous work, ask clarifying questions before building — what's the output, the fidelity, the option count, the constraints, the design system or brand in play?
 2. **Explore provided resources.** Read the active design system's full definition (it's stacked into this prompt below), any user-attached files, and the current Design Files workspace when the task depends on existing project state. No attached file does not mean no relevant file exists: list/search/read the workspace before choosing, summarizing, or editing an existing file. Use file-listing and read tools liberally; concurrent reads are encouraged.
 3. **Plan with TodoWrite.** For anything beyond a one-shot tweak, lay out a todo list before you start writing files. Update it as you go — the user sees your progress live.
-4. **Build the project files.** Write your main HTML file (and any supporting CSS/JSX/JS) to the project root. Show the user something early — even a rough first pass is better than radio silence.
-5. **Finish.** Wrap up by emitting an \`<artifact>\` block referencing the canonical file (see "Artifact handoff" below). Verify it renders cleanly. Summarize **briefly**: what's there, what's still open, what you'd suggest next.
-
-## Artifact handoff (non-negotiable output rule)
-At the end of every turn that produces a deliverable, the LAST thing in your response must be a single artifact block:
-
-\`\`\`
-<artifact identifier="kebab-slug" type="text/html" title="Human title">
-<!doctype html>
-<html>...complete standalone document...</html>
-</artifact>
-\`\`\`
-
-Rules:
-- The HTML must be **complete and standalone** — inline all CSS, no external CSS files, no external JS unless explicitly pinned (see React/Babel section).
-- If the user explicitly asks for React output, the artifact may instead be a single React component file: \`<artifact identifier="component-slug" type="text/jsx" title="Human title">...</artifact>\`. Export a default component or define \`App\`, \`Component\`, or \`Preview\`; do not include build-tool config in the artifact.
-- After \`</artifact>\`, stop. Do not narrate what you produced. Do not wrap the artifact in markdown code fences.
-- If you've written multiple files to the project, the artifact should be the **canonical semantic entry point** named from the brief. Use \`index.html\` only when it is a launcher/overview or a fixed runtime convention requires that path. Reference supporting files by their project-relative paths in \`<link>\` / \`<script>\` tags only if you also intend the user to use them; otherwise inline.
-- For decks and multi-page work, you may write companion files; the artifact still wraps the entry HTML.
+${FILESYSTEM_WORKFLOW_HANDOFF}
 
 ## Reading documents and images
 You can read Markdown, HTML, and other plaintext formats natively. You can read images attached by the user — they appear in the prompt with absolute paths or as project-relative paths inside your working directory. When the user pastes or drops an image, treat it as visual reference: lift palette, layout, tone — don't promise pixel-perfect recreation unless they ask for it.
@@ -144,20 +129,20 @@ export const WEB_CLONE_COPYRIGHT_GUARDRAIL_BULLET =
   '- This is a Website Clone run: the user explicitly asked for a faithful local reproduction of an existing site (evaluation / prototyping use). Reproduce its layout, visuals, assets, fonts, and copy faithfully — do NOT silently swap in placeholder branding or original artwork. Record trademarks and copyrighted media in a pre-deploy replacement checklist (NOTES.md) so the user decides what to replace before publishing.';
 
 export interface RenderOfficialDesignerPromptOptions {
+  executionProfile?: ExecutionProfile;
   // True for runs whose project metadata carries `intent: 'web-clone'`.
   webCloneFidelity?: boolean;
 }
 
-// API/BYOK counterpart of the daemon renderer. The contracts base prompt carries
-// no execution-profile placeholders, so this only swaps the copyright guardrail
-// for web-clone runs; everything else is the shared OFFICIAL_DESIGNER_PROMPT.
+/** Render the charter using the same delivery rules as the daemon. */
 export function renderOfficialDesignerPrompt(
   options: RenderOfficialDesignerPromptOptions = {},
 ): string {
-  return options.webCloneFidelity === true
-    ? OFFICIAL_DESIGNER_PROMPT.replace(
-        COPYRIGHT_GUARDRAIL_BULLET,
-        WEB_CLONE_COPYRIGHT_GUARDRAIL_BULLET,
-      )
+  const rendered = options.executionProfile === 'text_artifact'
+    ? OFFICIAL_DESIGNER_PROMPT.replace(FILESYSTEM_EXECUTION_CONTEXT, TEXT_ARTIFACT_EXECUTION_CONTEXT)
+      .replace(FILESYSTEM_WORKFLOW_HANDOFF, TEXT_ARTIFACT_WORKFLOW_HANDOFF)
     : OFFICIAL_DESIGNER_PROMPT;
+  return options.webCloneFidelity === true
+    ? rendered.replace(COPYRIGHT_GUARDRAIL_BULLET, WEB_CLONE_COPYRIGHT_GUARDRAIL_BULLET)
+    : rendered;
 }

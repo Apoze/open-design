@@ -232,7 +232,7 @@ export function createNextStepMarkerStripper(
 
       if (inMarker) {
         const close = CLOSE_TAG_RE.exec(buffer);
-        if (!close) {
+        if (!close || close.index + close[0].length > maxScanLength) {
           if (buffer.length > maxScanLength) {
             /*
              * Bet lost: no `</od-next>` within a sane distance, so this was
@@ -244,11 +244,13 @@ export function createNextStepMarkerStripper(
              * `<od-next key="…">` on screen. Neither is acceptable, so the
              * tag is the only thing that dies.
              */
-            visible += buffer;
+            // Release the same prefix for every transport fragmentation, then
+            // scan the rest normally so later valid markers are still handled.
+            visible += buffer.slice(0, maxScanLength + 1);
+            buffer = buffer.slice(maxScanLength + 1);
             inMarker = false;
             markerHead = '';
-            buffer = '';
-            break;
+            continue;
           }
           held = buffer;
           break;

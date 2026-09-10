@@ -47,6 +47,26 @@ const SELF_CLOSING = [
   `<od-next key="${KEY}" value="补一套深色模式"/>`,
 ].join('\n');
 
+describe('oversized marker body', () => {
+  test('preserves a long answer regardless of transport fragmentation', () => {
+    const body = 'Visible answer. '.repeat(6000);
+    const text = `<od-next>${body}</od-next>Conclusion.\n${SELF_CLOSING}`;
+    const render = (size: number) => {
+      const { s, seen } = make();
+      const chunks = Array.from({ length: Math.ceil(text.length / size) }, (_, i) => text.slice(i * size, (i + 1) * size));
+      return { ...feed(s, chunks), seen };
+    };
+    const whole = render(text.length);
+    for (const size of [text.length, 1, 256, 1024, 1025, 4096]) {
+      const result = render(size);
+      assert.ok(result.visible.includes(body), `lost answer with chunk size ${size}`);
+      assert.ok(result.visible.includes('Conclusion.'));
+      assert.deepEqual(result.seen, [['再加一页订单列表', '把商品卡换成两列布局', '补一套深色模式']]);
+      assert.equal(result.visible, whole.visible);
+    }
+  });
+});
+
 describe('解析', () => {
   test('一整块解析成三条', () => {
     const { s, seen } = make();

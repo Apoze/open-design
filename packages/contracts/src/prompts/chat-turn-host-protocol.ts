@@ -52,7 +52,8 @@ export function renderChatTurnHostProtocolInstructions(
     renderDoneMarker(key),
     'Everything before the marker is filed as working narration into a collapsed execution log; everything after it is shown to the user directly. Emit it at most once, and only when the work is done.',
     'The key is different every turn: copy the one above verbatim, never reuse an earlier one, and never invent one.',
-    'Skip the marker when you are ending the turn with a <question-form> or an <artifact> block — those already close the working phase on their own.',
+    'Skip the marker when you are ending the turn with a <question-form> and need the user to answer before continuing.',
+    'For an artifact delivery, finish the declared checklist and verify the saved files first, then emit the marker immediately before your delivery note. An <artifact> block alone does not declare that all work is finished.',
     'The marker is protocol, not prose: do not mention it, do not explain it, and do not wrap it in a code fence (a fenced marker is deliberately ignored).',
   ].join('\n');
   const nextSteps = [

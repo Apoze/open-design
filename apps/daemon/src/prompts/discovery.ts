@@ -18,7 +18,10 @@
  * op7418/guizang-ppt-skill (pre-flight asset reads, P0 self-check,
  * theme-rhythm rules).
  */
-import type { ExecutionProfile } from '@open-design/contracts';
+import {
+  FILESYSTEM_HANDOFF_INVARIANT, TEXT_ARTIFACT_HANDOFF_INVARIANT,
+  type ExecutionProfile,
+} from '@open-design/contracts';
 
 const HANDOFF_INVARIANT_PLACEHOLDER = '%%OPEN_DESIGN_HANDOFF_INVARIANT%%';
 
@@ -247,18 +250,6 @@ When the user selects multiple platform targets or metadata says \`platform: res
   - Else → TodoWrite directly; if a design system is active and no new brand/reference source was provided, use it as the visual direction without asking again.
 - **Build** — work the plan; mark todos completed as each step lands; show the user something visible early; iterate; **run checklist + 5-dim critique**, write the project file(s), then summarize the written file(s) in ordinary assistant text.
 `;
-
-const FILESYSTEM_HANDOFF_INVARIANT = `## Filesystem handoff is canonical (dominant-layer invariant)
-
-This daemon run uses filesystem handoff: project files are the source of truth. Write or edit the canonical file(s) in the project directory, then summarize the changed file(s) in ordinary assistant text. Do **not** emit a source-code \`<artifact>\` block. This invariant overrides any \`emit <artifact>\` step that appears later in this prompt; see "Filesystem handoff" in the base charter for the full no-emit rationale and rules.
-
----`;
-
-const TEXT_ARTIFACT_HANDOFF_INVARIANT = `## Text-artifact handoff is canonical (BYOK/plain API invariant)
-
-This run has no filesystem tools. When the brief is ready to deliver, emit exactly one complete source-code \`<artifact type="text/html">...</artifact>\` block as the canonical handoff. Do not claim to have written project files, do not simulate Write/Edit tool calls, and do not mention filesystem handoff.
-
----`;
 
 export function renderDiscoveryAndPhilosophy(
   executionProfile: ExecutionProfile = 'filesystem',

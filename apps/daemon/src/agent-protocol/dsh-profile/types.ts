@@ -12,6 +12,7 @@ export type DshProfileCapabilities = {
   session_resume: true;
   session_cancel: true;
   structured_events: true;
+  durable_turn_instructions?: true;
 };
 
 export type DshProfileModelSelection = {
@@ -40,6 +41,7 @@ export type DshProfileExecuteCommand = {
   request_id: string;
   cwd: string;
   prompt: string;
+  turn_instructions?: string;
   resume_session_id?: string;
   model?: DshProfileModelSelection;
   reasoning_effort?: string;

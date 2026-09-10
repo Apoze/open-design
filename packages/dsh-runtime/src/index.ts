@@ -17,6 +17,7 @@ import {
 } from '@deepseek-ai/dsh-llm';
 import { SessionId, type SessionEvent, type TurnEndReason } from '@deepseek-ai/dsh-session';
 import type {} from '@deepseek-ai/dsh-cmdline';
+import type {} from '@deepseek-ai/dsh-system-prompt';
 import {
   CAPABILITIES,
   identityFrame,
@@ -34,9 +35,10 @@ export const inject = [
   'llm',
   'sessions',
   'sessionPersistence',
+  'systemPrompt',
 ];
 
-const PLUGIN_VERSION = '0.1.0';
+const PLUGIN_VERSION = '0.1.1';
 
 type Output = { write(chunk: string): unknown };
 type ExitFallbackTimer = { unref(): unknown };
@@ -80,7 +82,7 @@ function contentText(content: readonly ContentBlock[]): string {
 }
 
 function resultStatus(reason: TurnEndReason | undefined): 'completed' | 'cancelled' | 'failed' {
-  if (reason?.kind === 'completed' || reason?.kind === 'max-tokens') return 'completed';
+  if (reason?.kind === 'completed') return 'completed';
   if (reason?.kind === 'aborted') return 'cancelled';
   return 'failed';
 }
@@ -94,6 +96,12 @@ function resultError(reason: TurnEndReason | undefined): { code: string; message
     };
   }
   if (reason.kind === 'error') return errorFacts(reason.error, 'DSH_PROFILE_TURN_FAILED');
+  if (reason.kind === 'max-tokens') {
+    return {
+      code: 'DSH_PROFILE_OUTPUT_INCOMPLETE',
+      message: 'DeepSeek Harness reached the output limit before completing the turn. The session is preserved; incomplete tool calls were not executed.',
+    };
+  }
   if (reason.kind === 'blocked') {
     return {
       code: 'DSH_PROFILE_TURN_BLOCKED',
@@ -251,6 +259,53 @@ function emitSessionEvent(
   }
 }
 
+function createSessionEventWriter(output: Output, request: ExecuteCommand, provider: string, model: string) {
+  let pendingText = '';
+  let committedText = '';
+  return {
+    get text() { return committedText; },
+    accept(event: SessionEvent) {
+      if (event.type === 'assistant/chunk') {
+        const chunk = event.data.chunk;
+        if (chunk.type === 'text-delta') {
+          pendingText += chunk.text;
+          return;
+        }
+        if (chunk.type === 'finish') {
+          if ((chunk.reason.kind === 'stop' || chunk.reason.kind === 'tool-calls') && pendingText !== '') {
+            writeFrame(output, { v: 1, type: 'text', request_id: request.request_id, content: pendingText });
+            committedText += pendingText;
+          }
+          pendingText = '';
+        }
+      }
+      // DSH v3 settles the stream inside the message; older hosts publish chunk events.
+      if (event.type === 'assistant/message' && 'stream' in event.data && Array.isArray(event.data.stream)) {
+        const terminal = event.data.stream.findLast((record: unknown) =>
+          typeof record === 'object' && record !== null && 'type' in record && record.type === 'chunk'
+          && 'chunk' in record && typeof record.chunk === 'object' && record.chunk !== null
+          && 'type' in record.chunk && record.chunk.type === 'finish');
+        const reason: unknown = terminal?.chunk?.reason?.kind;
+        if (reason === 'stop' || reason === 'tool-calls') {
+          for (const block of event.data.message.content) {
+            if ((block.type !== 'text' && block.type !== 'reasoning') || block.text === '') continue;
+            writeFrame(output, {
+              v: 1,
+              type: block.type === 'reasoning' ? 'thinking' : 'text',
+              request_id: request.request_id,
+              content: block.text,
+            });
+            if (block.type === 'text') committedText += block.text;
+          }
+        }
+        pendingText = '';
+      }
+      if (event.type === 'step/start' || event.type === 'turn/end') pendingText = '';
+      emitSessionEvent(output, request, provider, model, event);
+    },
+  };
+}
+
 async function execute(
   ctx: Context,
   request: ExecuteCommand,
@@ -269,18 +324,22 @@ async function execute(
   let handle: AgentHandle | undefined;
   let firstSeq = Number.POSITIVE_INFINITY;
   let turnEnd: SessionEvent<'turn/end'> | undefined;
-  let assistantOutput = '';
+  const eventWriter = createSessionEventWriter(output, request, selection.provider, selection.model);
   const setup = (agentCtx: Context) => {
     const selected: ModelSelectionRef = { current: selection, assembled: undefined };
     installModelSelection(agentCtx, selected);
+    if (request.turn_instructions) {
+      agentCtx.systemPrompt.context({
+        name: 'open-design.turn-instructions',
+        order: 1000,
+        text: request.turn_instructions,
+      });
+    }
   };
   let disposeEvent = () => {};
   const onSessionEvent = (session: { id: unknown }, event: SessionEvent) => {
     if (String(session.id) !== String(sessionId) || event.seq < firstSeq) return;
-    emitSessionEvent(output, request, selection.provider, selection.model, event);
-    if (event.type === 'assistant/chunk' && event.data.chunk.type === 'text-delta') {
-      assistantOutput += event.data.chunk.text;
-    }
+    eventWriter.accept(event);
     if (event.type === 'turn/end') turnEnd = event;
   };
 
@@ -350,7 +409,7 @@ async function execute(
       request_id: request.request_id,
       status,
       session_id: String(sessionId),
-      ...terminalOutput(assistantOutput),
+      ...terminalOutput(eventWriter.text),
       stop_reason: reason?.kind ?? 'unknown',
       resume_rejected: false,
       ...(failed === undefined ? {} : { error: failed }),
@@ -475,6 +534,7 @@ export const internals = {
   createCancellationLatch,
   errorFacts,
   emitSessionEvent,
+  createSessionEventWriter,
   execute,
   listModelCatalog,
   requestProfileExit,
