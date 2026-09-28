@@ -46,3 +46,9 @@ The embedded runtime accepts both historical `text` deltas and current DSH `text
 The `durable_turn_instructions` capability accepts `turn_instructions` on execute.
 The runtime registers these instructions as Harness runtime context, preserving
 the current turn protocol when conversation history is compacted.
+
+## Compatibilité DSH 0.2.0-rc.1
+
+Cette version cible les contrats V4 de DSH et Cordis 4.0.4. L’installation locale utilise le fork natif NInfer basé sur le tag officiel `dsh-v0.2.0-rc.1`. Les anciens plugins de récupération finale ne doivent pas être activés en parallèle avec `dsh-generation-recovery`.
+
+Pour développer contre le fork natif : installer les dépendances, puis exécuter `DSH_NATIVE_ROOT=/chemin/du/fork node scripts/link-native-core.mjs` avant la compilation. Les liens restent locaux dans `node_modules` ; les manifests et fichiers de verrouillage restent portables.

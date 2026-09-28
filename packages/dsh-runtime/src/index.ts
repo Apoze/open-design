@@ -12,6 +12,7 @@ import type {} from '@deepseek-ai/dsh-agent-default-model';
 import {
   createUserMessage,
   ReasoningEffortId,
+  lastAssistantStreamChunk,
   type ContentBlock,
   type TokenUsage,
 } from '@deepseek-ai/dsh-llm';
@@ -38,7 +39,7 @@ export const inject = [
   'systemPrompt',
 ];
 
-const PLUGIN_VERSION = '0.1.1';
+const PLUGIN_VERSION = '0.2.0';
 
 type Output = { write(chunk: string): unknown };
 type ExitFallbackTimer = { unref(): unknown };
@@ -74,7 +75,6 @@ function contentText(content: readonly ContentBlock[]): string {
   const visit = (blocks: readonly ContentBlock[]) => {
     for (const block of blocks) {
       if (block.type === 'text' || block.type === 'reasoning') text.push(block.text);
-      if (block.type === 'tool-result') visit(block.content);
     }
   };
   visit(content);
@@ -221,15 +221,6 @@ function emitSessionEvent(
   event: SessionEvent,
 ): void {
   switch (event.type) {
-    case 'assistant/chunk': {
-      const chunk = event.data.chunk;
-      if (chunk.type === 'text-delta' && chunk.text !== '') {
-        writeFrame(output, { v: 1, type: 'text', request_id: request.request_id, content: chunk.text });
-      } else if (chunk.type === 'reasoning-delta' && chunk.text !== '') {
-        writeFrame(output, { v: 1, type: 'thinking', request_id: request.request_id, content: chunk.text });
-      }
-      return;
-    }
     case 'tool/call':
       writeFrame(output, {
         v: 1,
@@ -245,10 +236,10 @@ function emitSessionEvent(
         v: 1,
         type: 'tool_result',
         request_id: request.request_id,
-        call_id: String(event.data.message.content[0].toolCallId),
+        call_id: String(event.data.message.toolCallId),
         name: event.data.error?.name ?? 'tool',
-        output: contentText(event.data.message.content[0].content),
-        is_error: event.data.message.content[0].isError === true,
+        output: contentText(event.data.message.content),
+        is_error: event.data.message.isError === true,
       });
       return;
     case 'assistant/message':
@@ -260,32 +251,12 @@ function emitSessionEvent(
 }
 
 function createSessionEventWriter(output: Output, request: ExecuteCommand, provider: string, model: string) {
-  let pendingText = '';
   let committedText = '';
   return {
     get text() { return committedText; },
     accept(event: SessionEvent) {
-      if (event.type === 'assistant/chunk') {
-        const chunk = event.data.chunk;
-        if (chunk.type === 'text-delta') {
-          pendingText += chunk.text;
-          return;
-        }
-        if (chunk.type === 'finish') {
-          if ((chunk.reason.kind === 'stop' || chunk.reason.kind === 'tool-calls') && pendingText !== '') {
-            writeFrame(output, { v: 1, type: 'text', request_id: request.request_id, content: pendingText });
-            committedText += pendingText;
-          }
-          pendingText = '';
-        }
-      }
-      // DSH v3 settles the stream inside the message; older hosts publish chunk events.
-      if (event.type === 'assistant/message' && 'stream' in event.data && Array.isArray(event.data.stream)) {
-        const terminal = event.data.stream.findLast((record: unknown) =>
-          typeof record === 'object' && record !== null && 'type' in record && record.type === 'chunk'
-          && 'chunk' in record && typeof record.chunk === 'object' && record.chunk !== null
-          && 'type' in record.chunk && record.chunk.type === 'finish');
-        const reason: unknown = terminal?.chunk?.reason?.kind;
+      if (event.type === 'assistant/message') {
+        const reason = lastAssistantStreamChunk(event.data.stream, 'finish')?.reason.kind;
         if (reason === 'stop' || reason === 'tool-calls') {
           for (const block of event.data.message.content) {
             if ((block.type !== 'text' && block.type !== 'reasoning') || block.text === '') continue;
@@ -298,9 +269,7 @@ function createSessionEventWriter(output: Output, request: ExecuteCommand, provi
             if (block.type === 'text') committedText += block.text;
           }
         }
-        pendingText = '';
       }
-      if (event.type === 'step/start' || event.type === 'turn/end') pendingText = '';
       emitSessionEvent(output, request, provider, model, event);
     },
   };

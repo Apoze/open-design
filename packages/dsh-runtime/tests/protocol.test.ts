@@ -100,17 +100,13 @@ describe('@open-design/dsh-runtime protocol', () => {
     ]);
   });
 
-  test('maps terminal reasons and nested tool output', () => {
+  test('maps terminal reasons and flat V4 tool output', () => {
     assert.equal(internals.resultStatus({ kind: 'completed' }), 'completed');
     assert.equal(internals.resultStatus({ kind: 'aborted', reason: { kind: 'user' } }), 'cancelled');
     assert.equal(internals.resultStatus({ kind: 'blocked' }), 'failed');
     assert.equal(internals.contentText([
       { type: 'text', text: 'one' },
-      {
-        type: 'tool-result',
-        toolCallId: 'call-1' as never,
-        content: [{ type: 'text', text: 'two' }],
-      },
+      { type: 'text', text: 'two' },
     ]), 'onetwo');
     assert.deepEqual(internals.terminalOutput(''), {});
     assert.deepEqual(internals.terminalOutput('done'), { output: 'done' });
@@ -177,26 +173,20 @@ describe('@open-design/dsh-runtime protocol', () => {
     assert.deepEqual(calls, ['managed:0', 'scheduled:1000', 'unref', 'forced']);
   });
 
-  test('retains incomplete text in the Harness session without publishing it as an answer', () => {
+  test('projects V4 tool result identity and output', () => {
     const frames: string[] = [];
-    const writer = internals.createSessionEventWriter({ write: (text: string) => { frames.push(text); return true; } }, {
+    internals.emitSessionEvent({ write: (text: string) => frames.push(text) }, {
       v: 1, type: 'execute', request_id: 'run', cwd: '/project', prompt: 'build', mcp_servers: [],
-    }, 'provider', 'model');
-    const accept = (chunk: unknown) => writer.accept({
-      type: 'assistant/chunk', seq: 1, time: 0, data: { turn: 1, step: 1, chunk },
-    } as Parameters<typeof writer.accept>[0]);
-    accept({ type: 'text-delta', index: 0, text: '<tool_call>unfinished HTML' });
-    assert.equal(frames.length, 0);
-    accept({ type: 'finish', reason: { kind: 'max-tokens' } });
-    assert.equal(frames.length, 0);
-    assert.equal(writer.text, '');
-    accept({ type: 'text-delta', index: 0, text: 'Saved successfully.' });
-    accept({ type: 'finish', reason: { kind: 'stop' } });
-    assert.equal(JSON.parse(frames[0] ?? '{}').content, 'Saved successfully.');
-    assert.equal(writer.text, 'Saved successfully.');
-    accept({ type: 'text-delta', index: 0, text: 'cancelled partial' });
-    accept({ type: 'finish', reason: { kind: 'aborted', failure: { code: 'ABORTED', message: 'cancelled' } } });
-    assert.equal(frames.length, 1);
+    }, 'provider', 'model', {
+      type: 'tool/result', seq: 1, time: 0, data: { turn: 1, step: 1,
+        message: { role: 'tool', toolCallId: 'call-1', isError: true,
+          content: [{ type: 'text', text: 'permission denied' }] },
+      },
+    } as unknown as Parameters<typeof internals.emitSessionEvent>[4]);
+    assert.deepEqual(JSON.parse(frames[0] ?? '{}'), {
+      v: 1, type: 'tool_result', request_id: 'run', call_id: 'call-1', name: 'tool',
+      output: 'permission denied', is_error: true,
+    });
   });
 
   test('publishes settled embedded-stream messages and ignores rejected attempts', () => {
