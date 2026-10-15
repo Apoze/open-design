@@ -7,8 +7,8 @@ if (!root) throw new Error('Set DSH_NATIVE_ROOT to the built native DSH checkout
 const here = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const manifest = JSON.parse(readFileSync(join(here, 'package.json'), 'utf8'))
 const wanted = new Set(Object.keys({...manifest.dependencies, ...manifest.devDependencies, ...manifest.peerDependencies}).filter(n => n.startsWith('@deepseek-ai/')))
-const found = new Map()
-function scan(dir, depth) {
+const found = new Map<string, string>()
+function scan(dir: string, depth: number) {
   try { const p=JSON.parse(readFileSync(join(dir,'package.json'),'utf8')); if(wanted.has(p.name)) found.set(p.name,dir) } catch {}
   if(depth) for(const entry of readdirSync(dir,{withFileTypes:true})) if(entry.isDirectory() && !['node_modules','.git','lib','dist'].includes(entry.name)) scan(join(dir,entry.name),depth-1)
 }

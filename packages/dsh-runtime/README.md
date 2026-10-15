@@ -15,7 +15,7 @@ Repository developers can perform the equivalent operation manually:
 ```sh
 pnpm --filter @open-design/dsh-runtime build
 pnpm -C packages/dsh-runtime pack --pack-destination <temporary-directory>
-dsh plugin --profile open-design add <temporary-directory>/open-design-dsh-runtime-0.1.1.tgz
+dsh plugin --profile open-design add <temporary-directory>/open-design-dsh-runtime-0.2.1.tgz
 dsh --profile open-design --probe
 dsh --profile open-design --models
 ```
@@ -47,8 +47,11 @@ The `durable_turn_instructions` capability accepts `turn_instructions` on execut
 The runtime registers these instructions as Harness runtime context, preserving
 the current turn protocol when conversation history is compacted.
 
-## Compatibilité DSH 0.2.0-rc.1
+## Compatibilité DSH 0.2.1-alpha.4
 
-Cette version cible les contrats V4 de DSH et Cordis 4.0.4. L’installation locale utilise le fork natif NInfer basé sur le tag officiel `dsh-v0.2.0-rc.1`. Les anciens plugins de récupération finale ne doivent pas être activés en parallèle avec `dsh-generation-recovery`.
+Cette version cible DSH 0.2.1-alpha.4 et Cordis 4.0.5-alpha.2. Le sous-chemin
+`invariant` est supprimé avec le service retiré par DSH. Le protocole JSONL,
+la reprise explicite des sessions et les instructions durables sont conservés.
+Les anciennes versions restent accessibles dans l’historique Git.
 
-Pour développer contre le fork natif : installer les dépendances, puis exécuter `DSH_NATIVE_ROOT=/chemin/du/fork node scripts/link-native-core.mjs` avant la compilation. Les liens restent locaux dans `node_modules` ; les manifests et fichiers de verrouillage restent portables.
+Pour compiler contre le fork local, exécuter `DSH_NATIVE_ROOT=/chemin/du/fork node packages/dsh-runtime/scripts/link-native-core.ts` depuis la racine après installation des dépendances. Les liens de développement restent dans `node_modules`.

@@ -39,7 +39,7 @@ export const inject = [
   'systemPrompt',
 ];
 
-const PLUGIN_VERSION = '0.2.0';
+const PLUGIN_VERSION = '0.2.1';
 
 type Output = { write(chunk: string): unknown };
 type ExitFallbackTimer = { unref(): unknown };

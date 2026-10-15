@@ -5,7 +5,6 @@ await build({
   entryPoints: {
     index: './src/index.ts',
     startup: './src/startup.ts',
-    invariant: './src/invariant.ts',
   },
   format: 'esm',
   outdir: './dist',
