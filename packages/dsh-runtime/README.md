@@ -15,7 +15,7 @@ Repository developers can perform the equivalent operation manually:
 ```sh
 pnpm --filter @open-design/dsh-runtime build
 pnpm -C packages/dsh-runtime pack --pack-destination <temporary-directory>
-dsh plugin --profile open-design add <temporary-directory>/open-design-dsh-runtime-0.2.1.tgz
+dsh plugin --profile open-design add <temporary-directory>/open-design-dsh-runtime-0.2.2.tgz
 dsh --profile open-design --probe
 dsh --profile open-design --models
 ```
@@ -47,10 +47,10 @@ The `durable_turn_instructions` capability accepts `turn_instructions` on execut
 The runtime registers these instructions as Harness runtime context, preserving
 the current turn protocol when conversation history is compacted.
 
-## Compatibilité DSH 0.2.1-alpha.4
+## Compatibilité DSH 0.2.1-rc.3
 
-Cette version cible DSH 0.2.1-alpha.4 et Cordis 4.0.5-alpha.2. Le sous-chemin
-`invariant` est supprimé avec le service retiré par DSH. Le protocole JSONL,
+Cette version cible DSH 0.2.1-rc.3 et Cordis 4.0.5-alpha.2. Le sous-chemin
+`invariant` est supprimé avec le service retiré par DSH. La sélection du modèle est enregistrée via `agent.model.select()` après ouverture ou reprise de la session. Le protocole JSONL,
 la reprise explicite des sessions et les instructions durables sont conservés.
 Les anciennes versions restent accessibles dans l’historique Git.
 

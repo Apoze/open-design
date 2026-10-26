@@ -6,7 +6,6 @@ import type {} from '@deepseek-ai/cordis-plugin-loader';
 import {
   installModelSelection,
   type AgentHandle,
-  type ModelSelectionRef,
 } from '@deepseek-ai/dsh-agent';
 import type {} from '@deepseek-ai/dsh-agent-default-model';
 import {
@@ -39,7 +38,7 @@ export const inject = [
   'systemPrompt',
 ];
 
-const PLUGIN_VERSION = '0.2.1';
+const PLUGIN_VERSION = '0.2.2';
 
 type Output = { write(chunk: string): unknown };
 type ExitFallbackTimer = { unref(): unknown };
@@ -295,8 +294,7 @@ async function execute(
   let turnEnd: SessionEvent<'turn/end'> | undefined;
   const eventWriter = createSessionEventWriter(output, request, selection.provider, selection.model);
   const setup = (agentCtx: Context) => {
-    const selected: ModelSelectionRef = { current: selection, assembled: undefined };
-    installModelSelection(agentCtx, selected);
+    installModelSelection(agentCtx);
     if (request.turn_instructions) {
       agentCtx.systemPrompt.context({
         name: 'open-design.turn-instructions',
@@ -356,6 +354,7 @@ async function execute(
       writeCancelledResult(output, request.request_id, String(sessionId));
       return;
     }
+    handle.agent.model.select(selection);
     firstSeq = handle.agent.session.seq + 1;
     disposeEvent = ctx.on('session/event', onSessionEvent);
     await handle.agent.followup(createUserMessage({

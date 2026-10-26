@@ -358,6 +358,7 @@ describe('@open-design/dsh-runtime protocol', () => {
   });
 
   test('cancellation remains authoritative while the active turn is being flushed', async () => {
+    let selectedModel: unknown;
     let idleCalls = 0;
     let notifyFlushStarted!: () => void;
     const flushStarted = new Promise<void>((resolveFlush) => { notifyFlushStarted = resolveFlush; });
@@ -367,6 +368,7 @@ describe('@open-design/dsh-runtime protocol', () => {
     const handle = {
       agent: {
         session: { seq: 0 },
+        model: { select: (selection: unknown) => { selectedModel = selection; } },
         whenIdle: async () => { idleCalls += 1; },
         followup: async () => {},
       },
@@ -403,6 +405,7 @@ describe('@open-design/dsh-runtime protocol', () => {
     finishFlush();
     await execution;
 
+    assert.deepEqual(selectedModel, { provider: 'deepseek-official', model: 'deepseek-chat' });
     assert.equal(idleCalls, 2);
     assert.equal(disposeCalls, 1);
     const frames = chunks.map((chunk) => JSON.parse(chunk) as { type: string; status?: string; error?: unknown });
