@@ -47,9 +47,9 @@ The `durable_turn_instructions` capability accepts `turn_instructions` on execut
 The runtime registers these instructions as Harness runtime context, preserving
 the current turn protocol when conversation history is compacted.
 
-## Compatibilité DSH 0.2.1-rc.3
+## Compatibilité DSH 0.2.2-rc.1
 
-Cette version cible DSH 0.2.1-rc.3 et Cordis 4.0.5-alpha.2. Le sous-chemin
+Cette version cible DSH 0.2.2-rc.1 et Cordis 4.0.5-alpha.2. Le sous-chemin
 `invariant` est supprimé avec le service retiré par DSH. La sélection du modèle est enregistrée via `agent.model.select()` après ouverture ou reprise de la session. Le protocole JSONL,
 la reprise explicite des sessions et les instructions durables sont conservés.
 Les anciennes versions restent accessibles dans l’historique Git.
