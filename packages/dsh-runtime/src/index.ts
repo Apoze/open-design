@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module';
 import { randomUUID } from 'node:crypto';
 import { createInterface } from 'node:readline';
 import type { Readable } from 'node:stream';
@@ -38,7 +39,7 @@ export const inject = [
   'systemPrompt',
 ];
 
-const PLUGIN_VERSION = '0.2.3';
+const PLUGIN_VERSION: string = createRequire(import.meta.url)('../package.json').version;
 
 type Output = { write(chunk: string): unknown };
 type ExitFallbackTimer = { unref(): unknown };
